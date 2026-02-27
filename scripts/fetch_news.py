@@ -107,7 +107,7 @@ def ai_process_news(articles):
 
 
 def generate_daily_summary(articles, ai_results):
-    now = datetime.now(timezone(datetime.now().astimezone().tzinfo))
+    
     hour = datetime.now().hour
     if hour < 12:
         greeting = "早安，為您帶來今日早間重點快報。"
