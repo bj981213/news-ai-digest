@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 智能新聞快報</title>
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AI新聞">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; background: #f5f5f7; color: #1d1d1f; }
+
+    .header { background: #fff; padding: 16px 20px; border-bottom: 1px solid #e5e5e5; position: sticky; top: 0; z-index: 100; }
+    .header h1 { font-size: 18px; font-weight: 700; text-align: center; }
+    .header .time { font-size: 12px; color: #888; text-align: center; margin-top: 2px; }
+
+    .container { max-width: 640px; margin: 0 auto; padding: 16px; }
+
+    .summary-card { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 16px; border-left: 4px solid #34c759; }
+    .summary-card .label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: #34c759; margin-bottom: 12px; }
+    .summary-card .text { font-size: 15px; line-height: 1.8; color: #333; white-space: pre-wrap; }
+
+    .category-bar { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 12px; scrollbar-width: none; }
+    .category-bar::-webkit-scrollbar { display: none; }
+    .cat-btn { flex-shrink: 0; padding: 6px 16px; border-radius: 20px; border: none; background: #e8e8ed; font-size: 13px; cursor: pointer; font-family: inherit; }
+    .cat-btn.active { background: #007aff; color: #fff; }
+
+    .section-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+
+    .news-list { background: #fff; border-radius: 16px; overflow: hidden; margin-bottom: 16px; }
+    .news-item { display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; text-decoration: none; color: inherit; }
+    .news-item:last-child { border-bottom: none; }
+    .news-item:active { background: #f5f5f7; }
+    .news-num { font-size: 18px; font-weight: 700; color: #c7c7cc; min-width: 24px; }
+    .news-content { flex: 1; }
+    .news-title { font-size: 15px; font-weight: 500; line-height: 1.5; margin-bottom: 4px; }
+    .news-meta { display: flex; gap: 8px; align-items: center; }
+    .news-source { font-size: 12px; color: #888; }
+    .news-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+    .badge-高 { background: #fff0f0; color: #ff3b30; }
+    .badge-中 { background: #fff8e6; color: #ff9500; }
+    .badge-低 { background: #f0f0f0; color: #888; }
+
+    .loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+    .error { text-align: center; padding: 40px; color: #ff3b30; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>AI 智能新聞快報</h1>
+  <div class="time" id="current-time"></div>
+</div>
+
+<div class="container">
+  <div id="summary-section">
+    <div class="loading">載入中...</div>
+  </div>
+
+  <div class="category-bar" id="category-bar"></div>
+
+  <div class="section-title">🔥 熱門頭條</div>
+  <div class="news-list" id="news-list">
+    <div class="loading">載入中...</div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://lqqzdkmyotllsmgefgjb.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_wNrSYqVTbYErJvJs1a8tGw_pN2CJxag';
+
+  const categories = ['全部', '政治', '財經', '科技', '國際', '社會', '兩岸', '其他'];
+  let allNews = [];
+  let currentCategory = '全部';
+
+  function updateTime() {
+    const now = new Date();
+    document.getElementById('current-time').textContent =
+      now.toLocaleDateString('zh-TW') + ' ' + now.toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit'});
+  }
+  setInterval(updateTime, 1000);
+  updateTime();
+
+  function buildCategoryBar() {
+    const bar = document.getElementById('category-bar');
+    bar.innerHTML = categories.map(c =>
+      `<button class="cat-btn ${c === currentCategory ? 'active' : ''}" onclick="filterCategory('${c}')">${c}</button>`
+    ).join('');
+  }
+
+  function filterCategory(cat) {
+    currentCategory = cat;
+    buildCategoryBar();
+    renderNews();
+  }
+
+  function renderNews() {
+    const filtered = currentCategory === '全部'
+      ? allNews
+      : allNews.filter(n => n.category === currentCategory);
+
+    const list = document.getElementById('news-list');
+    if (filtered.length === 0) {
+      list.innerHTML = '<div class="loading">此分類暫無新聞</div>';
+      return;
+    }
+    list.innerHTML = filtered.map((n, i) => `
+      <a class="news-item" href="${n.link}" target="_blank">
+        <div class="news-num">${i + 1}</div>
+        <div class="news-content">
+          <div class="news-title">${n.zh_title || n.original_title}</div>
+          <div class="news-meta">
+            <span class="news-source">${n.source}</span>
+            <span class="news-badge badge-${n.importance}">${n.importance === '高' ? '重要' : n.importance === '中' ? '一般' : '輕'}</span>
+          </div>
+        </div>
+      </a>
+    `).join('');
+  }
+
+  async function loadData() {
+    const today = new Date().toISOString().split('T')[0];
+    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` };
+
+    try {
+      // 載入摘要
+      const sumRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/daily_summary?date=eq.${today}&select=summary_text`,
+        { headers }
+      );
+      const sumData = await sumRes.json();
+      const summarySection = document.getElementById('summary-section');
+      if (sumData.length > 0) {
+        summarySection.innerHTML = `
+          <div class="summary-card">
+            <div class="label">🤖 AI 重點摘要</div>
+            <div class="text">${sumData[0].summary_text}</div>
+          </div>
+        `;
+      } else {
+        summarySection.innerHTML = '';
+      }
+
+      // 載入新聞
+      const newsRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/news_digest?date=eq.${today}&order=importance.asc&select=*`,
+        { headers }
+      );
+      allNews = await newsRes.json();
+
+      // 排序：高 > 中 > 低
+      const order = { '高': 0, '中': 1, '低': 2 };
+      allNews.sort((a, b) => (order[a.importance] || 1) - (order[b.importance] || 1));
+
+      buildCategoryBar();
+      renderNews();
+
+    } catch (e) {
+      document.getElementById('news-list').innerHTML = `<div class="error">載入失敗，請重試</div>`;
+    }
+  }
+
+  loadData();
+</script>
+</body>
+</html>

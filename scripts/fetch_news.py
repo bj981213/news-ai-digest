@@ -79,7 +79,6 @@ def process_batch(batch, batch_start):
         messages=[{"role": "user", "content": prompt}]
     )
     text = message.content[0].text.strip()
-    # 清理 markdown
     if "```" in text:
         parts = text.split("```")
         text = parts[1] if len(parts) > 1 else text
@@ -107,6 +106,50 @@ def ai_process_news(articles):
     return all_results
 
 
+def generate_daily_summary(articles, ai_results):
+    now = datetime.now(timezone(datetime.now().astimezone().tzinfo))
+    hour = datetime.now().hour
+    if hour < 12:
+        greeting = "早安，為您帶來今日早間重點快報。"
+    elif hour < 17:
+        greeting = "午安，為您帶來今日午間重點快報。"
+    else:
+        greeting = "晚安，為您帶來今日晚間重點快報。"
+
+    ai_map = {item["index"]: item for item in ai_results}
+    high_news = []
+    for i, article in enumerate(articles, 1):
+        ai_data = ai_map.get(i, {})
+        if ai_data.get("importance") == "高":
+            high_news.append({
+                "category": ai_data.get("category", "其他"),
+                "title": ai_data.get("zh_title", article["title"]),
+                "summary": ai_data.get("zh_summary", "")
+            })
+
+    news_text = "\n".join([f"- [{n['category']}] {n['title']}：{n['summary']}" for n in high_news[:15]])
+
+    prompt = f"""你是專業新聞主播，根據以下重要新聞，用繁體中文撰寫今日重點摘要。
+
+格式要求：
+1. 開頭用「{greeting}」
+2. 依【政治焦點】【國際情勢】【財經動態】【科技趨勢】【社會民生】等分類，每類2-3句話
+3. 只寫有新聞的分類，總字數約300-400字
+4. 語氣專業、簡潔、客觀
+
+重要新聞：
+{news_text}
+
+直接輸出摘要文字，不要加任何標記或說明。"""
+
+    message = anthropic_client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return message.content[0].text.strip()
+
+
 def save_to_supabase(articles, ai_results):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     ai_map = {item["index"]: item for item in ai_results}
@@ -126,9 +169,17 @@ def save_to_supabase(articles, ai_results):
             "published": article["published"]
         })
     supabase.table("news_digest").delete().eq("date", today).execute()
-    result = supabase.table("news_digest").insert(records).execute()
-    print(f"✅ 已儲存 {len(records)} 則新聞到資料庫")
-    return result
+    supabase.table("news_digest").insert(records).execute()
+    print(f"✅ 已儲存 {len(records)} 則新聞")
+
+
+def save_summary_to_supabase(summary_text):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    supabase.table("daily_summary").upsert({
+        "date": today,
+        "summary_text": summary_text
+    }, on_conflict="date").execute()
+    print(f"✅ 已儲存每日摘要")
 
 
 def main():
@@ -144,8 +195,14 @@ def main():
     ai_results = ai_process_news(articles)
     print(f"✅ AI 處理完成，共 {len(ai_results)} 則")
 
+    print("\n📝 生成每日摘要...")
+    summary = generate_daily_summary(articles, ai_results)
+    print("✅ 摘要生成完成")
+
     print("\n💾 儲存到資料庫...")
     save_to_supabase(articles, ai_results)
+    save_summary_to_supabase(summary)
+
     print("\n🎉 完成！")
 
 
