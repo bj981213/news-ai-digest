@@ -74,7 +74,7 @@ def process_batch(batch, batch_start):
 只回傳JSON陣列。"""
 
     message = anthropic_client.messages.create(
-        model="claude-opus-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=3000,
         messages=[{"role": "user", "content": prompt}]
     )
@@ -143,7 +143,7 @@ def generate_daily_summary(articles, ai_results):
 直接輸出摘要文字，不要加任何標記或說明。"""
 
     message = anthropic_client.messages.create(
-        model="claude-opus-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=1000,
         messages=[{"role": "user", "content": prompt}]
     )
