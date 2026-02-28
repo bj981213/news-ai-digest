@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="AI新聞">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="icon" type="image/png" href="icon.png">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; background: #f5f5f7; color: #1d1d1f; }
@@ -75,6 +77,14 @@
   let allNews = [];
   let currentCategory = '全部';
 
+  // ✅ 修復：根據使用者當前時間動態產生問候語
+  function getGreeting() {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return '早安，為您帶來今日早間重點快報。';
+    if (hour >= 12 && hour < 18) return '午安，為您帶來今日午間重點快報。';
+    return '晚安，為您帶來今日晚間重點快報。';
+  }
+
   function updateTime() {
     const now = new Date();
     document.getElementById('current-time').textContent =
@@ -133,10 +143,15 @@
       const sumData = await sumRes.json();
       const summarySection = document.getElementById('summary-section');
       if (sumData.length > 0) {
+        // ✅ 修復：移除資料庫中儲存的問候語，改用前端動態產生
+        const rawText = sumData[0].summary_text
+          .replace(/^(早安|午安|晚安)[^。]*。\n?/, '');
+        const displayText = getGreeting() + '\n\n' + rawText;
+
         summarySection.innerHTML = `
           <div class="summary-card">
             <div class="label">🤖 AI 重點摘要</div>
-            <div class="text">${sumData[0].summary_text}</div>
+            <div class="text">${displayText}</div>
           </div>
         `;
       } else {
