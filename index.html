@@ -145,7 +145,9 @@
       if (sumData.length > 0) {
         // ✅ 修復：移除資料庫中儲存的問候語，改用前端動態產生
         const rawText = sumData[0].summary_text
-          .replace(/^(早安|午安|晚安)[^。]*。\n?/, '');
+          .replace(/^(早安|午安|晚安)[^。]*。\n?/, '')
+          .replace(/以上就是今日(早間|午間|晚間|)[^。]*重點快報。?\s*$/, '')
+          .trim();
         const displayText = getGreeting() + '\n\n' + rawText;
 
         summarySection.innerHTML = `
