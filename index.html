@@ -167,9 +167,9 @@
       );
       allNews = await newsRes.json();
 
-      // 排序：高 > 中 > 低
+      // ✅ 修復排序：重要(高) > 一般(中) > 輕(低)
       const order = { '高': 0, '中': 1, '低': 2 };
-      allNews.sort((a, b) => (order[a.importance] || 1) - (order[b.importance] || 1));
+      allNews.sort((a, b) => (order[a.importance] ?? 2) - (order[b.importance] ?? 2));
 
       buildCategoryBar();
       renderNews();
