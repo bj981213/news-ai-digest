@@ -1,33 +1,31 @@
 name: Daily News Fetch
-
 on:
   schedule:
-    - cron: '0 0 * * *'   # 台灣時間 08:00
-    - cron: '0 2 * * *'   # 台灣時間 10:00
-    - cron: '0 4 * * *'   # 台灣時間 12:00
-    - cron: '0 6 * * *'   # 台灣時間 14:00
-    - cron: '0 8 * * *'   # 台灣時間 16:00
-    - cron: '0 11 * * *'  # 台灣時間 19:00
-    - cron: '0 14 * * *'  # 台灣時間 22:00
+    - cron: '0 0 * * *'    # 08:00 台灣
+    - cron: '30 4 * * *'   # 12:30 台灣
+    - cron: '0 9 * * *'    # 17:00 台灣
+    - cron: '0 14 * * *'   # 22:00 台灣
   workflow_dispatch:
-
 jobs:
   fetch-news:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
       - name: Install dependencies
         run: pip install feedparser anthropic supabase python-dotenv requests
-        
-      - name: Run news fetcher
+      - name: Run news fetcher (with retry)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python scripts/fetch_news.py
+        run: |
+          for i in 1 2 3; do
+            echo "嘗試第 $i 次..."
+            python scripts/fetch_news.py && break
+            echo "第 $i 次失敗，等待 30 秒後重試..."
+            sleep 30
+          done
