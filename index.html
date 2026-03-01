@@ -20,6 +20,8 @@
 
     .container { max-width: 640px; margin: 0 auto; padding: 16px; }
 
+    .notice { font-size: 12px; color: #ff9500; background: #fff8e6; border-radius: 10px; padding: 8px 14px; margin-bottom: 12px; text-align: center; }
+
     .summary-card { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 16px; border-left: 4px solid #34c759; }
     .summary-card .label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: #34c759; margin-bottom: 12px; }
     .summary-card .text { font-size: 15px; line-height: 1.8; color: #333; white-space: pre-wrap; }
@@ -57,6 +59,8 @@
 </div>
 
 <div class="container">
+  <div id="notice-section"></div>
+
   <div id="summary-section">
     <div class="loading">載入中...</div>
   </div>
@@ -77,7 +81,6 @@
   let allNews = [];
   let currentCategory = '全部';
 
-  // ✅ 修復：根據使用者當前時間動態產生問候語
   function getGreeting() {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) return '早安，為您帶來今日早間重點快報。';
@@ -135,15 +138,23 @@
     const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` };
 
     try {
-      // 載入摘要
+      // ✅ 第一步：抓資料庫中最新一筆摘要，取得其日期
       const sumRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/daily_summary?date=eq.${today}&select=summary_text`,
+        `${SUPABASE_URL}/rest/v1/daily_summary?order=date.desc&limit=1&select=summary_text,date`,
         { headers }
       );
       const sumData = await sumRes.json();
       const summarySection = document.getElementById('summary-section');
+
       if (sumData.length > 0) {
-        // ✅ 修復：移除資料庫中儲存的問候語，改用前端動態產生
+        const latestDate = sumData[0].date;
+
+        // 如果不是今天的資料，顯示提示
+        if (latestDate !== today) {
+          document.getElementById('notice-section').innerHTML =
+            `<div class="notice">⚠️ 今日資料更新中，目前顯示 ${latestDate} 的新聞</div>`;
+        }
+
         const rawText = sumData[0].summary_text
           .replace(/^(早安|午安|晚安)[^。]*。\n?/, '')
           .replace(/以上就是今日(早間|午間|晚間|)[^。]*重點快報。?\s*$/, '')
@@ -156,18 +167,20 @@
             <div class="text">${displayText}</div>
           </div>
         `;
+
+        // ✅ 第二步：用最新日期抓同一天的新聞（不會混到其他天）
+        const newsRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/news_digest?date=eq.${latestDate}&select=*`,
+          { headers }
+        );
+        allNews = await newsRes.json();
+
       } else {
         summarySection.innerHTML = '';
+        allNews = [];
       }
 
-      // 載入新聞
-      const newsRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/news_digest?date=eq.${today}&order=importance.asc&select=*`,
-        { headers }
-      );
-      allNews = await newsRes.json();
-
-      // ✅ 修復排序：重要(高) > 一般(中) > 輕(低)
+      // 排序：重要(高) > 一般(中) > 輕(低)
       const order = { '高': 0, '中': 1, '低': 2 };
       allNews.sort((a, b) => (order[a.importance] ?? 2) - (order[b.importance] ?? 2));
 
